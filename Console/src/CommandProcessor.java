@@ -29,7 +29,9 @@ import alphaz.mde.transformation.Reduction;
 
 public class CommandProcessor {
 	String progname; 
-	Pattern p= Pattern.compile("((\\w*)[=])?(\\w*)[(](\\S*(,\\S*)*)[)];");
+	Pattern p= Pattern.compile("((\\w+)[=])?(\\w+)[(](\\S+(,\\S+)*)[)];");
+	Pattern strreg = Pattern.compile("(\\w+)=(\\S*);");
+	Pattern argsregex = Pattern.compile("((\\d+|\\w+|[\"].*[\"])[,])*(\\d+|\\w+|[\"].*[\"])");
 	HashMap<String,String> methodmap;
 	SymbolTable st;
 	HelpPrinter hp = new HelpPrinter();
@@ -83,10 +85,29 @@ public class CommandProcessor {
 			assignvar = m.group(2);
 			func = m.group(3);
 			paramstr = m.group(4);
+			Matcher mm=argsregex.matcher(paramstr);
+			if(mm.find()){
+				System.out.println(mm.groupCount());
+				for(int i=1;i<=mm.groupCount(); i++){
+					System.out.println(mm.group(i));
+				}
+			}
 			args = paramstr.replaceAll("\\)", "").split(",");
 		}
 		else{
-			System.out.println("Syntax Error");
+			Matcher strmm = strreg.matcher(input);
+			if(strmm.find()){
+				System.out.println(strmm.group(0));
+				System.out.println(strmm.group(1));
+				System.out.println(strmm.group(2));
+				assignvar = strmm.group(1);
+				paramstr = strmm.group(2);
+				//System.out.println(assignvar + " " + strmm);
+				st.put(assignvar, paramstr);
+				return;
+			}
+			else
+				System.out.println("Syntax Error");
 		}
 		
 		Object[] params = processParams(args);
@@ -1232,7 +1253,6 @@ public class CommandProcessor {
 			}
 			break;
 		}
-		
 		if(assignvar != null){
 			st.put(assignvar, result);
 		}
