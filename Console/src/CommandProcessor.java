@@ -30,9 +30,8 @@ import alphaz.mde.transformation.Reduction;
 
 public class CommandProcessor {
 	String progname; 
-	Pattern p= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*((\\w+|\\d+|([\"][^\"]*[\"]))(\\s*,\\s*(\\w+|\\d+|([\"][^\"]*[\"])))*)[)];");
+	Pattern exprreg= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*((\\w+|\\d+|([\"][^\"]*[\"]))(\\s*,\\s*(\\w+|\\d+|([\"][^\"]*[\"])))*)[)];");
 	Pattern strreg = Pattern.compile("(\\w+)\\s*=\\s*[\"]([^\"]*)[\"];");
-	//Pattern argsregex = Pattern.compile("((\\d+|\\w+|[\"].*[\"])[,])*(\\d+|\\w+|[\"].*[\"])");
 	HashMap<String,String> methodmap;
 	SymbolTable st;
 	HelpPrinter hp = new HelpPrinter();
@@ -66,9 +65,9 @@ public class CommandProcessor {
 				procparams.add(Integer.valueOf(p));
 			}
 			else{
-				System.out.println(p);
 				if(!st.contains(p)){
-					throw new IOException("\'" + p + "\' not defined");
+					System.err.println("Variable " + p + " not defined");
+					throw new IOException();
 				}
 				Object obj=st.get(p);
 				procparams.add(obj);
@@ -78,12 +77,12 @@ public class CommandProcessor {
 		
 	}
 	public void computeFunc(String input) throws ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, IOException{
-		//System.out.println(input);
-		Matcher m=p.matcher(input);
+		Matcher m=exprreg.matcher(input);
 		String func = null;
 		String args[] = null;
 		String assignvar = null;
 		String paramstr = null;
+		Object[] params = null;
 		
 		if(m.find()){
 			input = input.substring(0, input.length()-1);
@@ -94,7 +93,6 @@ public class CommandProcessor {
 			String nonstrparams = "";
 			for(int i=0;i<quotesplit.length; i+=2)
 				nonstrparams = nonstrparams + quotesplit[i];
-			System.out.println(nonstrparams);
 			nonstrparams.replaceAll(" ", "");
 			String[] commasplit = nonstrparams.split(",");
 			args = new String[commasplit.length];
@@ -105,27 +103,28 @@ public class CommandProcessor {
 				}
 				else
 					args[i] = commasplit[i].replaceAll(" ", "");
-				System.out.println(args[i]);
 			}
 		}
 		else{
 			Matcher strmm = strreg.matcher(input);
 			if(strmm.find()){
-//				System.out.println(strmm.group(0));
-				System.out.println(strmm.group(1));
-				System.out.println(strmm.group(2));
 				assignvar = strmm.group(1);
 				paramstr = strmm.group(2);
 				st.put(assignvar, paramstr);
 				return;
 			}
 			else{
-				System.out.println("Syntax Error");
+				System.err.println("Syntax Error");
 				return;
 			}
 		}
 		
-		Object[] params = processParams(args);
+		try{
+			params = processParams(args);
+		}
+		catch(IOException e){
+			return;
+		}
 		if(methodmap.get(func).equals("void") && assignvar != null){
 			System.out.println("Method returns void. Cannot assign to variable");
 			return;

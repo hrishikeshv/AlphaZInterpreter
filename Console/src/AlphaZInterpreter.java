@@ -30,8 +30,9 @@ public class AlphaZInterpreter {
 								Scanner scan = new Scanner(new File(filename));
 							    while(scan.hasNextLine()){
 							        String line = scan.nextLine();
-							        if(line.startsWith("#"))
+							        if(line.startsWith("#") || line.isEmpty())
 							        	continue;
+							        System.out.println(line);
 							        processor.computeFunc(line);
 							    }
 							}
