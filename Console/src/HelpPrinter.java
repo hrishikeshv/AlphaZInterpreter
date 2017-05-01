@@ -443,5 +443,4 @@ public final class HelpPrinter {
 			break;
 		}
 	}
-
 }

@@ -30,9 +30,9 @@ import alphaz.mde.transformation.Reduction;
 
 public class CommandProcessor {
 	String progname; 
-	Pattern p= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*(\\S+(,\\S+)*)[)];");
-	Pattern strreg = Pattern.compile("(\\w+)=(\\S*);");
-	Pattern argsregex = Pattern.compile("((\\d+|\\w+|[\"].*[\"])[,])*(\\d+|\\w+|[\"].*[\"])");
+	Pattern p= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*((\\w+|\\d+|([\"][^\"]*[\"]))(\\s*,\\s*(\\w+|\\d+|([\"][^\"]*[\"])))*)[)];");
+	Pattern strreg = Pattern.compile("(\\w+)\\s*=\\s*[\"]([^\"]*)[\"];");
+	//Pattern argsregex = Pattern.compile("((\\d+|\\w+|[\"].*[\"])[,])*(\\d+|\\w+|[\"].*[\"])");
 	HashMap<String,String> methodmap;
 	SymbolTable st;
 	HelpPrinter hp = new HelpPrinter();
@@ -66,6 +66,7 @@ public class CommandProcessor {
 				procparams.add(Integer.valueOf(p));
 			}
 			else{
+				System.out.println(p);
 				if(!st.contains(p)){
 					throw new IOException("\'" + p + "\' not defined");
 				}
@@ -77,7 +78,7 @@ public class CommandProcessor {
 		
 	}
 	public void computeFunc(String input) throws ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, IOException{
-		input = input.replaceAll("\\s+", "");
+		//System.out.println(input);
 		Matcher m=p.matcher(input);
 		String func = null;
 		String args[] = null;
@@ -89,29 +90,39 @@ public class CommandProcessor {
 			assignvar = m.group(2);
 			func = m.group(3);
 			paramstr = m.group(4);
-			Matcher mm=argsregex.matcher(paramstr);
-			if(mm.find()){
-				System.out.println(mm.groupCount());
-				for(int i=1;i<=mm.groupCount(); i++){
-					System.out.println(mm.group(i));
+			String[] quotesplit = paramstr.split("\"");
+			String nonstrparams = "";
+			for(int i=0;i<quotesplit.length; i+=2)
+				nonstrparams = nonstrparams + quotesplit[i];
+			System.out.println(nonstrparams);
+			nonstrparams.replaceAll(" ", "");
+			String[] commasplit = nonstrparams.split(",");
+			args = new String[commasplit.length];
+			for(int i=0, j=1;i<commasplit.length; i++){
+				if(commasplit[i].isEmpty()){
+					args[i]="\"" + quotesplit[j] + "\"";
+					j+=2;
 				}
+				else
+					args[i] = commasplit[i].replaceAll(" ", "");
+				System.out.println(args[i]);
 			}
-			args = paramstr.replaceAll("\\)", "").split(",");
 		}
 		else{
 			Matcher strmm = strreg.matcher(input);
 			if(strmm.find()){
-				System.out.println(strmm.group(0));
+//				System.out.println(strmm.group(0));
 				System.out.println(strmm.group(1));
 				System.out.println(strmm.group(2));
 				assignvar = strmm.group(1);
 				paramstr = strmm.group(2);
-				//System.out.println(assignvar + " " + strmm);
 				st.put(assignvar, paramstr);
 				return;
 			}
-			else
+			else{
 				System.out.println("Syntax Error");
+				return;
+			}
 		}
 		
 		Object[] params = processParams(args);
@@ -1274,7 +1285,7 @@ public class CommandProcessor {
 						System.out.println(op);
 					}
 				}
-				catch(NumberFormatException e)
+				catch(ClassCastException e)
 				{
 					System.out.println("Invalid argument: " + params[0].toString());
 				}
@@ -1323,7 +1334,7 @@ public class CommandProcessor {
 			}
 			break;
 			
-			case "redo":
+		case "redo":
 			if(params.length == 0)
 			{
 				memento.redo(1);
@@ -1343,6 +1354,19 @@ public class CommandProcessor {
 		case "printTransform":
 			memento.printTransform();
 			break;
+		case "delVar":
+			String varname=String.valueOf(params[0]);
+			if(varname.equals(progname)){
+				System.out.println("Cannot remove program from context. Use clear instead.");
+				return;
+			}
+			if(st.contains(varname)){
+				st.remove(varname);
+			}
+			else{
+				System.err.println("Attempted to remove a variable that is not declared.");
+				return;
+			}
 		}
 		if(assignvar != null){
 			st.put(assignvar, result);
