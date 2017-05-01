@@ -1412,21 +1412,38 @@ public class CommandProcessor {
 			memento.printTransform();
 			break;
 		case "delVar":
-			String varname=String.valueOf(params[0]);
-			if(varname.equals(progName)){
-				System.out.println("Cannot remove program from context. Use clear instead.");
-				return;
+			String varName=String.valueOf(params[0]);
+			if(varName.equals(progName)) {
+				System.out.println("Removing program from context...");
+				memento.clear();
 			}
-			if(st.contains(varname)){
-				st.remove(varname);
-			}
-			else{
+			if(st.contains(varName)) {
+				st.remove(varName);
+			} else {
 				System.err.println("Attempted to remove a variable that is not declared.");
 				return;
 			}
+		case "clear":
+			clear();
+			break;
+		case "help":
+			String f = (String) params[0];
+			hp.printHelp(f);
+			break;
 		}
+		
 		if(assignVar != null){
 			st.put(assignVar, result);
 		}
+	}
+	
+	/**
+	 * <h2> clear </h2>
+	 * Clears the current context - Symbol Table, program, and mimento.
+	 */
+	private void clear()
+	{
+		memento.clear();
+		st.clear();
 	}
 }

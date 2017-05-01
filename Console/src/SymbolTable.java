@@ -50,4 +50,13 @@ public class SymbolTable {
 		st.remove(key);
 	}
 	
+	/**
+	 * <h2> clear </h2>
+	 * Clear the state of the symbol table.
+	 */
+	public void clear()
+	{
+		st.clear();
+	}
+	
 }

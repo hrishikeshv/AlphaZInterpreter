@@ -12,6 +12,8 @@ public final class HelpPrinter {
 	 * @param funcname - Name of the function.
 	 */
 	public void printHelp(String funcname) {
+		System.out.println(funcname);
+		System.out.println();
 		switch(funcname){
 		case "ASave":
 			System.out.println("Description: Outputs the program to the specified file with array syntax.When filename is not specified, saves as \"original_filename-ASave.ab\".");
@@ -451,6 +453,41 @@ public final class HelpPrinter {
 		case "setDefaultDTilerConfiguration":
 			System.out.println("Description: Set up the default configuration for dtiler: apply parametric one level tiling to all the dimensions from [start to end].");
 			System.out.println("Usage: setDefaultDTilerConfiguration(Program prog, String system, int startDim, int endDim, String tilingType)");
+			break;
+		case "history":
+			System.out.println("Description: Print out command history so far.");
+			System.out.println("Usage: history()");
+			System.out.println("Usage: history(int n)");
+			break;
+		case "searchHistory":
+			System.out.println("Description: Search History for a particular pattern - can be a regex.");
+			System.out.println("Usage: searchHistory(String pattern)");
+			break;
+		case "undo":
+			System.out.println("Descrgiption: Undo n times, default 1.");
+			System.out.println("Usage: undo()");
+			System.out.println("Usage: undo(int n)");
+			break;
+		case "redo":
+			System.out.println("Descrgiption: Redo n times, default 1.");
+			System.out.println("Usage: redo()");
+			System.out.println("Usage: redo(int n)");
+			break;
+		case "printTransform":
+			System.out.println("Description: Print the effective transformation carried out on the program so far, after a long sequence of actions.");
+			System.out.println("Usage: printTransform()");
+			break;
+		case "delVar":
+			System.out.println("Description: Removes variable from context. If you ask to remove program from context, it's undo/redo history will also be erased.");
+			System.out.println("Usage: delVar(String varName)");
+			break;
+		case "clear":
+			System.out.println("Description: Clears the symbol table, program, and undo/redo history");
+			System.out.println("Usage: clear()");
+			break;
+		case "help":
+			System.out.println("Description: Prints help messages for commands.");
+			System.out.println("Usage: help(String funcName)");
 			break;
 		default:
 			System.out.println("No relevant documentation found");
