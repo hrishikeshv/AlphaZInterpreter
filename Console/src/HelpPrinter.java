@@ -1,5 +1,16 @@
-// Prints help for every command. 
+/**
+ *  <h1> HelpPrinter </h1>
+ *  Prints help for every command.
+ * @author Hrishikesh Vaidya, Surya Teja Chavali, Akilesh B
+ *
+ */
 public final class HelpPrinter {
+
+	/**
+	 * <h2> printHelp </h2>
+	 * The only method in HelpPrinter. Prints help relevant to AlphaZ function.
+	 * @param funcname - Name of the function.
+	 */
 	public void printHelp(String funcname) {
 		switch(funcname){
 		case "ASave":
@@ -441,6 +452,8 @@ public final class HelpPrinter {
 			System.out.println("Description: Set up the default configuration for dtiler: apply parametric one level tiling to all the dimensions from [start to end].");
 			System.out.println("Usage: setDefaultDTilerConfiguration(Program prog, String system, int startDim, int endDim, String tilingType)");
 			break;
+		default:
+			System.out.println("No relevant documentation found");
 		}
 	}
 }

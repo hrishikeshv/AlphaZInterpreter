@@ -31,14 +31,11 @@ import alphaz.mde.transformation.Reduction;
  * 
  * <h1>	CommandProcessor </h1>
  * The CommandProcessor Class is the main workhorse of our application. 
- * It takes an expression inputted at the console, parses it, and passes it to 
- * the relevant AlphaZ function.
- * <p>	
- * The functionality it provides is as follows:
- * <ul>
- * 	<li> computeFunc()</li>
- * 	<li> </li>
- * </ul>
+ * It takes a command inputted at the console, parses it, and passes it to 
+ * the relevant AlphaZ function. 
+ * It also maintains internal state to maintain local variables, print command history, 
+ * print help, and undo/redo an action.
+ * 
  * @author Hrishikesh Vaidya, Surya Teja Chavali, B Akilesh
  * 
  */
@@ -46,39 +43,63 @@ import alphaz.mde.transformation.Reduction;
 public class CommandProcessor {
 	String progName; 
 	Pattern exprReg= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*((\\w+|\\d+|([\"][^\"]*[\"]))(\\s*,\\s*(\\w+|\\d+|([\"][^\"]*[\"])))*)[)];");
-	Pattern strreg = Pattern.compile("(\\w+)\\s*=\\s*[\"]([^\"]*)[\"];");
-	HashMap<String,String> methodmap;
+	Pattern strReg = Pattern.compile("(\\w+)\\s*=\\s*[\"]([^\"]*)[\"];");
+	HashMap<String,String> methodMap;
 	SymbolTable st;
 	HelpPrinter hp = new HelpPrinter();
-	Memento memento = null;
+	Memento memento = null; 
 	ArrayList<String> history = new ArrayList<String>();
 	
-	CommandProcessor() throws SecurityException, ClassNotFoundException {
-		methodmap = genReturnTypeMap();
+	/**
+	 * <h2> CommandProcessor() </h2>
+	 * The constructor of the CommandProcessor class.
+	 * Generates the mapping of AlphaZ functions to return types, and also initializes internal state variables.
+	 * @throws SecurityException
+	 * @throws ClassNotFoundException
+	 */
+	public CommandProcessor() throws SecurityException, ClassNotFoundException 
+	{
+		methodMap = genReturnTypeMap();
 		st = new SymbolTable();
 	}
 	
-	public HashMap<String,String> genReturnTypeMap() throws SecurityException, ClassNotFoundException {
-		List<Class> subcatgs = Arrays.asList(Basic.class,Reduction.class,MonoparametricTiling.class,Transformation.class,CodeGen.class,Analysis.class,TargetMapping.class);
-		HashMap<String,String> methodreturn = new HashMap();
-		for(Class subcat: subcatgs) {
+	/**
+	 * <h2> genReturnTypeMap() </h2>
+	 * Generates the mapping of AlphaZ functions to return types.
+	 * @return HashMap<String, String> A map that maps AlphaZ function to return type. 
+	 * @throws SecurityException
+	 * @throws ClassNotFoundException
+	 */
+	private HashMap<String,String> genReturnTypeMap() throws SecurityException, ClassNotFoundException 
+	{
+		List<Class> subCatgs = Arrays.asList(Basic.class,Reduction.class,MonoparametricTiling.class,Transformation.class,CodeGen.class,Analysis.class,TargetMapping.class);
+		HashMap<String,String> methodReturn = new HashMap();
+		for(Class subcat: subCatgs) {
 			Method[] methods = subcat.getDeclaredMethods();
 			for(Method m: methods){
-				methodreturn.put(m.getName(), m.getReturnType().toString());
+				methodReturn.put(m.getName(), m.getReturnType().toString());
 			}
 		}
-		return methodreturn;
+		return methodReturn;
 	}
 	
-	public Object[] processParams(String[] params) throws IOException{
-		List<Object> procparams = new ArrayList<Object>();
+	/**
+	 * <h2> processParams </h2>
+	 * Processes the list of method parameters, represented as a string,
+	 * returns the list of converted string literals, integers, and objects corresponding to variable names. 
+	 * @param params - An array of Strings representing function parameters.
+	 * @return An array of Objects representing the function parameters.
+	 * @throws IOException
+	 */
+	private  Object[] processParams(String[] params) throws IOException{
+		List<Object> procParams = new ArrayList<Object>();
 		for(String p: params){
 			//System.out.println(p);
 			if(p.startsWith("\"") && p.endsWith("\"")){
-				procparams.add(p.replaceAll("\"",""));
+				procParams.add(p.replaceAll("\"",""));
 			}
 			else if(p.matches("\\d+")){
-				procparams.add(Integer.valueOf(p));
+				procParams.add(Integer.valueOf(p));
 			}
 			else{
 				if(!st.contains(p)){
@@ -86,25 +107,39 @@ public class CommandProcessor {
 					throw new IOException();
 				}
 				Object obj=st.get(p);
-				procparams.add(obj);
+				procParams.add(obj);
 			}
 		}
-		return procparams.toArray(new Object[procparams.size()]);
+		return procParams.toArray(new Object[procParams.size()]);
 		
 	}
 	
+	/**
+	 * <h2> computeFunc </h2>
+	 * The main workhorse of the CommandProcessor class. Reads the command, obtains the parameters,
+	 * passes it to the relevant overloaded (usually AlphaZ) method. If there is an error, prints 
+	 * the relevant help message, indicating usage.
+	 * @param input The command
+	 * @throws ClassNotFoundException
+	 * @throws NoSuchMethodException
+	 * @throws SecurityException
+	 * @throws IllegalAccessException
+	 * @throws IllegalArgumentException
+	 * @throws InvocationTargetException
+	 * @throws IOException
+	 */
 	public void computeFunc(String input) throws ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, IOException{
 		Matcher m = exprReg.matcher(input);
 		String func = null;
 		String args[] = null;
-		String assignvar = null;
+		String assignVar = null;
 		String paramstr = null;
 		Object[] params = null;
 		
 		//Parse the arguments to the function.
 		if(m.find()) {
 			input = input.substring(0, input.length()-1);
-			assignvar = m.group(2);
+			assignVar = m.group(2);
 			func = m.group(3);
 			paramstr = m.group(4);
 			String[] quotesplit = paramstr.split("\"");
@@ -124,11 +159,11 @@ public class CommandProcessor {
 			}
 		}
 		else{
-			Matcher strmm = strreg.matcher(input);
+			Matcher strmm = strReg.matcher(input);
 			if(strmm.find()){
-				assignvar = strmm.group(1);
+				assignVar = strmm.group(1);
 				paramstr = strmm.group(2);
-				st.put(assignvar, paramstr);
+				st.put(assignVar, paramstr);
 				return;
 			}
 			else{
@@ -145,15 +180,18 @@ public class CommandProcessor {
 			return;
 		} finally { }
 		
-		if(methodmap.get(func).equals("void") && assignvar != null){
+		if(methodMap.get(func).equals("void") && assignVar != null){
 			System.out.println("Method returns void. Cannot assign to variable");
 			return;
 		}
-		if(st.contains(assignvar)){
-			System.out.println("Redeclaration of variable " + assignvar);
+		if(st.contains(assignVar)){
+			System.out.println("Redeclaration of variable " + assignVar);
 			return;
 		}
+		
 		Object result = null;
+		
+		//Big switch case for to call the relevant function.
 		switch(func){
 		case "ASave":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
@@ -1387,8 +1425,8 @@ public class CommandProcessor {
 				return;
 			}
 		}
-		if(assignvar != null){
-			st.put(assignvar, result);
+		if(assignVar != null){
+			st.put(assignVar, result);
 		}
 	}
 }
