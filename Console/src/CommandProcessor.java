@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import org.polymodel.polyhedralIR.AffineFunction;
 import org.polymodel.polyhedralIR.Domain;
@@ -29,12 +30,15 @@ import alphaz.mde.transformation.Reduction;
 
 public class CommandProcessor {
 	String progname; 
-	Pattern p= Pattern.compile("((\\w+)[=])?(\\w+)[(](\\S+(,\\S+)*)[)];");
+	Pattern p= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*(\\S+(,\\S+)*)[)];");
 	Pattern strreg = Pattern.compile("(\\w+)=(\\S*);");
 	Pattern argsregex = Pattern.compile("((\\d+|\\w+|[\"].*[\"])[,])*(\\d+|\\w+|[\"].*[\"])");
 	HashMap<String,String> methodmap;
 	SymbolTable st;
 	HelpPrinter hp = new HelpPrinter();
+	Memento memento = null;
+	ArrayList<String> history = new ArrayList<String>();
+	
 	CommandProcessor() throws SecurityException, ClassNotFoundException{
 		methodmap = genReturnTypeMap();
 		st = new SymbolTable();
@@ -209,6 +213,7 @@ public class CommandProcessor {
 		case "ReadAlphabets":
 			if((params.length == 1) && (params[0] instanceof String)){
 				result = Basic.ReadAlphabets((String) params[0]);
+				memento = new Memento((Program) result);
 			}
 			else{
 				hp.printHelp(func);
@@ -1251,6 +1256,92 @@ public class CommandProcessor {
 			else{
 				hp.printHelp(func);
 			}
+			break;
+		case "history":
+			if(params.length == 0)
+			{
+				for(String cmd: history)
+				{
+					System.out.println(cmd);
+				}
+			}
+			else {
+				try {
+					int num = (Integer) params[0];
+					for(int i = history.size() - 1 - num ; i > 0; i++)
+					{
+						String op = String.format("%4d\t%s", i+1, history.get(i));
+						System.out.println(op);
+					}
+				}
+				catch(NumberFormatException e)
+				{
+					System.out.println("Invalid argument: " + params[0].toString());
+				}
+				
+			}
+			break;
+	
+		case "searchHistory":
+			if(params.length != 1)
+			{
+				try {
+					Pattern pat = Pattern.compile((String) params[0]);
+					for(int i = 0; i < history.size(); i++)
+					{
+						Matcher mat = pat.matcher(history.get(i));
+						if(mat.find()) {
+							String op = String.format("%4d\t%s", i+1, history.get(i));
+							System.out.println(op);
+						}
+					}
+				}
+				catch(PatternSyntaxException e)
+				{
+					System.out.println("Invalid regex or string: " + params[0]);
+				}
+			}
+			else {
+				System.out.println("Invalid syntax: "+input);
+			}
+			break;
+	
+		case "undo":
+			if(params.length == 0)
+			{
+				memento.undo(1);
+			}
+			else {
+				try {
+					int num = (Integer) params[0];
+					memento.undo(num);
+				}
+				catch(NumberFormatException e)
+				{
+					System.out.println("Invalid argument: " + params[0].toString());
+				}
+			}
+			break;
+			
+			case "redo":
+			if(params.length == 0)
+			{
+				memento.redo(1);
+			}
+			else {
+				try {
+					int num = (Integer) params[0];
+					memento.redo(num);
+				}
+				catch(NumberFormatException e)
+				{
+					System.out.println("Invalid argument: " + params[0].toString());
+				}
+			}
+			break;
+	
+		case "printTransform":
+			memento.printTransform();
 			break;
 		}
 		if(assignvar != null){
