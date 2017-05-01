@@ -7,18 +7,21 @@ import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 
+ * @author Hrishikesh Vaidya
+ *
+ */
 
 public class AlphaZInterpreter {
 	
-	public static void main(String[] args) throws IOException, ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException{
-		// TODO Auto-generated method stub
+	public static void main(String[] args) throws IOException, ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 		Scanner reader = new Scanner(System.in);
 		CommandProcessor processor = new CommandProcessor();
 		while(true){
 			System.out.print(">>>");
 			String s=reader.nextLine();
 			Pattern p= Pattern.compile("(\\w+)[(](\"[^\"]*\")[)];");
-			//System.out.println(s);
 			if(s.contains("readScript")){
 				Matcher m = p.matcher(s);
 				if(m.find()){
@@ -55,20 +58,12 @@ public class AlphaZInterpreter {
 				System.out.println("Program terminated");
 				break;
 			}
-			else
+			else if(s != null && !s.isEmpty())
 				processor.computeFunc(s);
+			else
+				continue;
 		}
 		reader.close();
-		
-		/*
-		 *	TODO:
-		 *	1. Check if program already in context
-		 *	2. Generate switch case via parsing xml file
-		 *	3. Check function validity by comparing number of parameters
-		 *	
-		 *	prog = ReadAlphabets("/home/hrishi/workspace/AlphabetsExamples/MatMult/MM.ab")		
-		 */
-
 	}
 
 }

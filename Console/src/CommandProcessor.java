@@ -12,7 +12,6 @@ import java.util.regex.PatternSyntaxException;
 import org.polymodel.polyhedralIR.AffineFunction;
 import org.polymodel.polyhedralIR.Domain;
 import org.polymodel.polyhedralIR.Program;
-import org.polymodel.polyhedralIR.impl.ProgramImpl;
 import org.polymodel.polyhedralIR.polyIRCG.generator.CodeGenOptions;
 import org.polymodel.polyhedralIR.polyIRCG.generator.TiledCodeGenOptions;
 import org.polymodel.prdg.PRDG;
@@ -28,9 +27,25 @@ import alphaz.mde.transformation.MonoparametricTiling;
 import alphaz.mde.transformation.Reduction;
 
 
+/**
+ * 
+ * <h1>	CommandProcessor </h1>
+ * The CommandProcessor Class is the main workhorse of our application. 
+ * It takes an expression inputted at the console, parses it, and passes it to 
+ * the relevant AlphaZ function.
+ * <p>	
+ * The functionality it provides is as follows:
+ * <ul>
+ * 	<li> computeFunc()</li>
+ * 	<li> </li>
+ * </ul>
+ * @author Hrishikesh Vaidya, Surya Teja Chavali, B Akilesh
+ * 
+ */
+
 public class CommandProcessor {
-	String progname; 
-	Pattern exprreg= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*((\\w+|\\d+|([\"][^\"]*[\"]))(\\s*,\\s*(\\w+|\\d+|([\"][^\"]*[\"])))*)[)];");
+	String progName; 
+	Pattern exprReg= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*((\\w+|\\d+|([\"][^\"]*[\"]))(\\s*,\\s*(\\w+|\\d+|([\"][^\"]*[\"])))*)[)];");
 	Pattern strreg = Pattern.compile("(\\w+)\\s*=\\s*[\"]([^\"]*)[\"];");
 	HashMap<String,String> methodmap;
 	SymbolTable st;
@@ -38,14 +53,15 @@ public class CommandProcessor {
 	Memento memento = null;
 	ArrayList<String> history = new ArrayList<String>();
 	
-	CommandProcessor() throws SecurityException, ClassNotFoundException{
+	CommandProcessor() throws SecurityException, ClassNotFoundException {
 		methodmap = genReturnTypeMap();
 		st = new SymbolTable();
 	}
-	public HashMap<String,String> genReturnTypeMap() throws SecurityException, ClassNotFoundException{
+	
+	public HashMap<String,String> genReturnTypeMap() throws SecurityException, ClassNotFoundException {
 		List<Class> subcatgs = Arrays.asList(Basic.class,Reduction.class,MonoparametricTiling.class,Transformation.class,CodeGen.class,Analysis.class,TargetMapping.class);
 		HashMap<String,String> methodreturn = new HashMap();
-		for(Class subcat: subcatgs){
+		for(Class subcat: subcatgs) {
 			Method[] methods = subcat.getDeclaredMethods();
 			for(Method m: methods){
 				methodreturn.put(m.getName(), m.getReturnType().toString());
@@ -76,15 +92,17 @@ public class CommandProcessor {
 		return procparams.toArray(new Object[procparams.size()]);
 		
 	}
+	
 	public void computeFunc(String input) throws ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, IOException{
-		Matcher m=exprreg.matcher(input);
+		Matcher m = exprReg.matcher(input);
 		String func = null;
 		String args[] = null;
 		String assignvar = null;
 		String paramstr = null;
 		Object[] params = null;
 		
-		if(m.find()){
+		//Parse the arguments to the function.
+		if(m.find()) {
 			input = input.substring(0, input.length()-1);
 			assignvar = m.group(2);
 			func = m.group(3);
@@ -122,9 +140,11 @@ public class CommandProcessor {
 		try{
 			params = processParams(args);
 		}
-		catch(IOException e){
+		catch(IOException e) {
+			e.printStackTrace();
 			return;
-		}
+		} finally { }
+		
 		if(methodmap.get(func).equals("void") && assignvar != null){
 			System.out.println("Method returns void. Cannot assign to variable");
 			return;
@@ -1355,7 +1375,7 @@ public class CommandProcessor {
 			break;
 		case "delVar":
 			String varname=String.valueOf(params[0]);
-			if(varname.equals(progname)){
+			if(varname.equals(progName)){
 				System.out.println("Cannot remove program from context. Use clear instead.");
 				return;
 			}
