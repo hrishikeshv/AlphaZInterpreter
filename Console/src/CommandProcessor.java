@@ -192,6 +192,8 @@ public class CommandProcessor {
 				return;
 			}
 		}
+		else
+			params = new Object[0];
 		if(methodMap.containsKey(func) && methodMap.get(func).equals("void") && assignVar != null){
 			System.out.println("Method returns void. Cannot assign to variable");
 			return;
@@ -1200,8 +1202,8 @@ public class CommandProcessor {
 				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (Integer) params[2], (String) params[3], (AffineFunction) params[4]);
 				memento.recordAction(input, (Program) st.get(progName));
 			}
-//			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer) && (params[3] instanceof String)){
-//				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (Integer) params[2], (String) params[3]);
+//			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
+//				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (S) params[2], (String) params[3]);
 //				memento.recordAction(input, (Program) st.get(progName));
 //			}
 //			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
@@ -1486,35 +1488,40 @@ public class CommandProcessor {
 		case "undo":
 			if(params.length == 0)
 			{
-				memento.undo(1);
+				result = memento.undo(1);
 			}
 			else {
 				try {
 					int num = (Integer) params[0];
-					memento.undo(num);
+					result = memento.undo(num);
 				}
 				catch(NumberFormatException e)
 				{
-					System.out.println("Invalid argument: " + params[0].toString());
+					System.err.println("Invalid argument: " + params[0].toString());
+					return;
 				}
 			}
+			st.remove(progName);
+			st.put(progName, result);
 			break;
 			
 		case "redo":
 			if(params.length == 0)
 			{
-				memento.redo(1);
+				result = memento.redo(1);
 			}
 			else {
 				try {
 					int num = (Integer) params[0];
-					memento.redo(num);
+					result = memento.redo(num);
 				}
 				catch(NumberFormatException e)
 				{
 					System.out.println("Invalid argument: " + params[0].toString());
 				}
 			}
+			st.remove(progName);
+			st.put(progName, result);
 			break;
 	
 		case "printTransform":
@@ -1541,6 +1548,7 @@ public class CommandProcessor {
 				System.err.println("Unsupported parameter type");
 				return;
 			}
+			break;
 		case "clear":
 			clear();
 			break;
@@ -1563,7 +1571,10 @@ public class CommandProcessor {
 	 */
 	private void clear()
 	{
-		memento.clear();
+		if(memento !=null){
+			memento.clear();
+			memento = null;
+		}
 		st.clear();
 	}
 }

@@ -55,7 +55,7 @@ public final class Memento
 	 */
 	public final void recordAction(String action, Program program)
 	{
-		undoStack.push(currState);
+		undoStack.push(currState.copy());
 		redoStack.clear();
 		undone.clear();
 		transformations.add(action);

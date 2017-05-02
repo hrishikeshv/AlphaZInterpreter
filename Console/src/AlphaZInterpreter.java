@@ -36,7 +36,6 @@ public class AlphaZInterpreter {
 							        String line = scan.nextLine();
 							        if(line.startsWith("#") || line.isEmpty())
 							        	continue;
-							        System.out.println(line);
 							        processor.computeFunc(line);
 							    }
 							}
