@@ -143,6 +143,7 @@ public class CommandProcessor {
 		String paramstr = null;
 		Object[] params = null;
 		
+		history.add(input);
 		//Parse the arguments to the function.
 		if(m.find()) {
 			input = input.substring(0, input.length()-1);
@@ -1465,11 +1466,10 @@ public class CommandProcessor {
 			if(params.length != 1)
 			{
 				try {
-					Pattern pat = Pattern.compile((String) params[0]);
+					String pat = (String) params[0];
 					for(int i = 0; i < history.size(); i++)
 					{
-						Matcher mat = pat.matcher(history.get(i));
-						if(mat.find()) {
+						if(history.get(i).contains(pat)) {
 							String op = String.format("%4d\t%s", i+1, history.get(i));
 							System.out.println(op);
 						}
