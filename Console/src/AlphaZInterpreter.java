@@ -15,10 +15,11 @@ import java.util.regex.Pattern;
 
 public class AlphaZInterpreter {
 	
-	public static void main(String[] args) throws IOException, ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+	public static void main(String[] args) throws IOException, ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, InterruptedException {
 		Scanner reader = new Scanner(System.in);
 		CommandProcessor processor = new CommandProcessor();
 		while(true){
+			Thread.sleep(1500);
 			System.out.print(">>>");
 			String s=reader.nextLine();
 			Pattern p= Pattern.compile("(\\w+)[(](\"[^\"]*\")[)];");

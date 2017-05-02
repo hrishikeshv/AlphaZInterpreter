@@ -1,3 +1,5 @@
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -42,7 +44,7 @@ import alphaz.mde.transformation.Reduction;
 
 public class CommandProcessor {
 	String progName; 
-	Pattern exprReg= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*((\\w+|\\d+|([\"][^\"]*[\"]))(\\s*,\\s*(\\w+|\\d+|([\"][^\"]*[\"])))*)[)];");
+	Pattern exprReg= Pattern.compile("((\\w+)\\s*[=]\\s*)?(\\w+)\\s*[(]\\s*((\\w+|\\d+|([\"][^\"]*[\"]))?(\\s*,\\s*(\\w+|\\d+|([\"][^\"]*[\"])))*)[)];");
 	Pattern strReg = Pattern.compile("(\\w+)\\s*=\\s*[\"]([^\"]*)[\"];");
 	HashMap<String,String> methodMap;
 	SymbolTable st;
@@ -72,7 +74,7 @@ public class CommandProcessor {
 	 */
 	private HashMap<String,String> genReturnTypeMap() throws SecurityException, ClassNotFoundException 
 	{
-		List<Class> subCatgs = Arrays.asList(Basic.class,Reduction.class,MonoparametricTiling.class,Transformation.class,CodeGen.class,Analysis.class,TargetMapping.class);
+		List<Class> subCatgs = Arrays.asList(Basic.class, Calculator.class, Reduction.class,MonoparametricTiling.class,Transformation.class,CodeGen.class,Analysis.class,TargetMapping.class);
 		HashMap<String,String> methodReturn = new HashMap();
 		for(Class subcat: subCatgs) {
 			Method[] methods = subcat.getDeclaredMethods();
@@ -102,12 +104,17 @@ public class CommandProcessor {
 				procParams.add(Integer.valueOf(p));
 			}
 			else{
-				if(!st.contains(p)){
-					System.err.println("Variable " + p + " not defined");
-					throw new IOException();
+				Object obj = st.get(p);
+				if(obj != null){
+					procParams.add(obj);
 				}
-				Object obj=st.get(p);
-				procParams.add(obj);
+				else{
+					if(p.contains("(") && p.contains(")"))
+						System.err.println("Nested expressions not supported.");
+					else
+						System.err.println("Variable " + p + " not declared.");
+					return null;
+				}
 			}
 		}
 		return procParams.toArray(new Object[procParams.size()]);
@@ -142,20 +149,27 @@ public class CommandProcessor {
 			assignVar = m.group(2);
 			func = m.group(3);
 			paramstr = m.group(4);
-			String[] quotesplit = paramstr.split("\"");
-			String nonstrparams = "";
-			for(int i=0;i<quotesplit.length; i+=2)
-				nonstrparams = nonstrparams + quotesplit[i];
-			nonstrparams.replaceAll(" ", "");
-			String[] commasplit = nonstrparams.split(",");
-			args = new String[commasplit.length];
-			for(int i=0, j=1;i<commasplit.length; i++){
-				if(commasplit[i].isEmpty()){
-					args[i]="\"" + quotesplit[j] + "\"";
-					j+=2;
+			//System.out.println(paramstr);
+			if(!paramstr.isEmpty()){
+		
+				String[] quotesplit = paramstr.split("\"");
+				String nonstrparams = "";
+				for(int i=0;i<quotesplit.length; i+=2)
+					nonstrparams = nonstrparams + quotesplit[i];
+				nonstrparams = nonstrparams.replaceAll(" ", "");
+				//System.out.println(nonstrparams);
+				String[] commasplit = nonstrparams.split(",");
+				args = new String[commasplit.length];
+				//System.out.println(commasplit.length);
+				for(int i=0, j=1;i<commasplit.length; i++){
+					if(commasplit[i].isEmpty()){
+						args[i]="\"" + quotesplit[j] + "\"";
+						j+=2;
+					}
+					else
+						args[i] = commasplit[i].replaceAll(" ", "");
+					//System.out.println(args[i]);
 				}
-				else
-					args[i] = commasplit[i].replaceAll(" ", "");
 			}
 		}
 		else{
@@ -167,20 +181,18 @@ public class CommandProcessor {
 				return;
 			}
 			else{
-				System.err.println("Syntax Error");
+				System.err.println("Syntax Error.");
 				return;
 			}
 		}
 		
-		try{
+		if(args != null){
 			params = processParams(args);
+			if(params == null){
+				return;
+			}
 		}
-		catch(IOException e) {
-			e.printStackTrace();
-			return;
-		} finally { }
-		
-		if(methodMap.get(func).equals("void") && assignVar != null){
+		if(methodMap.containsKey(func) && methodMap.get(func).equals("void") && assignVar != null){
 			System.out.println("Method returns void. Cannot assign to variable");
 			return;
 		}
@@ -262,6 +274,7 @@ public class CommandProcessor {
 		case "Normalize":
 			if((params.length == 1) && (params[0] instanceof Program)){
 				Basic.Normalize((Program) params[0]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -280,8 +293,13 @@ public class CommandProcessor {
 			break;
 		case "ReadAlphabets":
 			if((params.length == 1) && (params[0] instanceof String)){
+				if(!new File((String) params[0]).exists()){
+					System.err.println("File does not exist");
+					return;
+				}
 				result = Basic.ReadAlphabets((String) params[0]);
 				memento = new Memento((Program) result);
+				progName = assignVar;
 			}
 			else{
 				hp.printHelp(func);
@@ -290,6 +308,7 @@ public class CommandProcessor {
 		case "RenameSystem":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				Basic.RenameSystem((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -298,6 +317,7 @@ public class CommandProcessor {
 		case "RenameVariable":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				Basic.RenameVariable((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -306,9 +326,11 @@ public class CommandProcessor {
 		case "RemoveUnusedVariables":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Basic.RemoveUnusedVariables((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 1) && (params[0] instanceof Program)){
 				Basic.RemoveUnusedVariables((Program) params[0]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -317,12 +339,15 @@ public class CommandProcessor {
 		case "PermutationCaseReduce":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				Reduction.PermutationCaseReduce((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 1) && (params[0] instanceof Program)){
 				Reduction.PermutationCaseReduce((Program) params[0]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Reduction.PermutationCaseReduce((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -331,6 +356,7 @@ public class CommandProcessor {
 		case "ReductionDecomposition":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				Reduction.ReductionDecomposition((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -339,9 +365,11 @@ public class CommandProcessor {
 		case "SimplifyingReduction":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				Reduction.SimplifyingReduction((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 1) && (params[0] instanceof Program)){
 //				Reduction.SimplifyingReduction((Program) params[0]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -350,12 +378,15 @@ public class CommandProcessor {
 		case "NormalizeReduction":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Reduction.NormalizeReduction((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 1) && (params[0] instanceof Program)){
 				Reduction.NormalizeReduction((Program) params[0]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 1) && (params[0] instanceof Program)){
 				Reduction.NormalizeReduction((Program) params[0]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -364,6 +395,7 @@ public class CommandProcessor {
 		case "FactorOutFromReduction":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Reduction.FactorOutFromReduction((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -380,6 +412,7 @@ public class CommandProcessor {
 		case "TransformReductionBody":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				Reduction.TransformReductionBody((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -388,9 +421,11 @@ public class CommandProcessor {
 		case "SerializeReduction":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				Reduction.SerializeReduction((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 1) && (params[0] instanceof Program)){
 //				Reduction.SerializeReduction((Program) params[0]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -399,6 +434,7 @@ public class CommandProcessor {
 		case "MergeReductions":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Reduction.MergeReductions((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -407,6 +443,7 @@ public class CommandProcessor {
 		case "ReductionComposition":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Reduction.ReductionComposition((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -415,6 +452,7 @@ public class CommandProcessor {
 		case "monoparametricTiling_noOutlining":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Boolean) && (params[4] instanceof Integer)){
 				MonoparametricTiling.monoparametricTiling_noOutlining((Program) params[0], (String) params[1], (String) params[2], (Boolean) params[3], (Integer) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -423,6 +461,7 @@ public class CommandProcessor {
 		case "monoparametricTiling_Outlining_noSubsystem":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Boolean) && (params[4] instanceof Integer)){
 				MonoparametricTiling.monoparametricTiling_Outlining_noSubsystem((Program) params[0], (String) params[1], (String) params[2], (Boolean) params[3], (Integer) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -431,6 +470,7 @@ public class CommandProcessor {
 		case "monoparametricTiling_Outlining":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Boolean) && (params[4] instanceof Integer)){
 				MonoparametricTiling.monoparametricTiling_Outlining((Program) params[0], (String) params[1], (String) params[2], (Boolean) params[3], (Integer) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -439,6 +479,7 @@ public class CommandProcessor {
 		case "setRatio":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				MonoparametricTiling.setRatio((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -447,6 +488,7 @@ public class CommandProcessor {
 		case "setMinParamValues":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer)){
 				MonoparametricTiling.setMinParamValues((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -455,6 +497,7 @@ public class CommandProcessor {
 		case "setTileGroup":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				MonoparametricTiling.setTileGroup((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -463,6 +506,7 @@ public class CommandProcessor {
 		case "setCoBPreprocess":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				MonoparametricTiling.setCoBPreprocess((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -471,9 +515,11 @@ public class CommandProcessor {
 		case "CoB":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof AffineFunction)){
 				Transformation.CoB((Program) params[0], (String) params[1], (String) params[2], (AffineFunction) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 //				Transformation.CoB((Program) params[0], (String) params[1], (String) params[2]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -482,9 +528,11 @@ public class CommandProcessor {
 		case "ForceCoB":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof AffineFunction)){
 				Transformation.ForceCoB((Program) params[0], (String) params[1], (String) params[2], (AffineFunction) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 //				Transformation.ForceCoB((Program) params[0], (String) params[1], (String) params[2]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -493,9 +541,11 @@ public class CommandProcessor {
 		case "Split":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String) && (params[4] instanceof String)){
 				Transformation.Split((Program) params[0], (String) params[1], (String) params[2], (String) params[3], (String) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				Transformation.Split((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -504,6 +554,7 @@ public class CommandProcessor {
 		case "Merge":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String) && (params[4] instanceof String)){
 				Transformation.Merge((Program) params[0], (String) params[1], (String) params[2], (String) params[3], (String) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -512,9 +563,11 @@ public class CommandProcessor {
 		case "Inline":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String) && (params[4] instanceof Integer)){
 				Transformation.Inline((Program) params[0], (String) params[1], (String) params[2], (String) params[3], (Integer) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				Transformation.Inline((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -523,9 +576,11 @@ public class CommandProcessor {
 		case "Simplify":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Transformation.Simplify((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 1) && (params[0] instanceof Program)){
 				Transformation.Simplify((Program) params[0]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -534,9 +589,11 @@ public class CommandProcessor {
 		case "createFreeScheduler":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				result = Transformation.createFreeScheduler((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 1) && (params[0] instanceof Program)){
 				result = Transformation.createFreeScheduler((Program) params[0]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -545,6 +602,7 @@ public class CommandProcessor {
 		case "SplitUnion":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Transformation.SplitUnion((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -553,6 +611,7 @@ public class CommandProcessor {
 		case "ApplySTMap":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Transformation.ApplySTMap((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -561,12 +620,15 @@ public class CommandProcessor {
 		case "UniformizeInContext":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer)){
 				Transformation.UniformizeInContext((Program) params[0], (String) params[1], (Integer) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 1) && (params[0] instanceof Program)){
 				Transformation.UniformizeInContext((Program) params[0]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Transformation.UniformizeInContext((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -575,9 +637,11 @@ public class CommandProcessor {
 		case "InlineForce":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String) && (params[4] instanceof Integer)){
 				Transformation.InlineForce((Program) params[0], (String) params[1], (String) params[2], (String) params[3], (Integer) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				Transformation.InlineForce((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -586,6 +650,7 @@ public class CommandProcessor {
 		case "InlineAll":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				Transformation.InlineAll((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -594,6 +659,7 @@ public class CommandProcessor {
 		case "InlineAllForce":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				Transformation.InlineAllForce((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -602,6 +668,7 @@ public class CommandProcessor {
 		case "InlineSubSystem":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				Transformation.InlineSubSystem((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -610,6 +677,7 @@ public class CommandProcessor {
 		case "OutlineSubSystem":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				Transformation.OutlineSubSystem((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -618,9 +686,11 @@ public class CommandProcessor {
 		case "AddLocal":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				Transformation.AddLocal((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 //				Transformation.AddLocal((Program) params[0], (String) params[1], (String) params[2]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -629,6 +699,7 @@ public class CommandProcessor {
 		case "AddLocalUnique":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				Transformation.AddLocalUnique((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -637,6 +708,7 @@ public class CommandProcessor {
 		case "DetectReductions":
 			if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 				Transformation.DetectReductions((Program) params[0], (String) params[1]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -645,6 +717,7 @@ public class CommandProcessor {
 		case "reduceDimVariable":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				result = Transformation.reduceDimVariable((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -653,6 +726,7 @@ public class CommandProcessor {
 		case "alignDimVariable":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				result = Transformation.alignDimVariable((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -1124,12 +1198,15 @@ public class CommandProcessor {
 		case "setSpaceTimeMap":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer) && (params[3] instanceof String) && (params[4] instanceof AffineFunction)){
 				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (Integer) params[2], (String) params[3], (AffineFunction) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer) && (params[3] instanceof String)){
 //				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (Integer) params[2], (String) params[3]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 //			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 //				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (String) params[2]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -1138,24 +1215,31 @@ public class CommandProcessor {
 		case "setMemoryMap":
 			if((params.length == 6) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String) && (params[4] instanceof AffineFunction) && (params[5] instanceof String)){
 				TargetMapping.setMemoryMap((Program) params[0], (String) params[1], (String) params[2], (String) params[3], (AffineFunction) params[4], (String) params[5]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				TargetMapping.setMemoryMap((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof AffineFunction) && (params[4] instanceof String)){
 				TargetMapping.setMemoryMap((Program) params[0], (String) params[1], (String) params[2], (AffineFunction) params[3], (String) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof AffineFunction)){
 				TargetMapping.setMemoryMap((Program) params[0], (String) params[1], (String) params[2], (AffineFunction) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String) && (params[4] instanceof AffineFunction)){
 				TargetMapping.setMemoryMap((Program) params[0], (String) params[1], (String) params[2], (String) params[3], (AffineFunction) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				TargetMapping.setMemoryMap((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 //				TargetMapping.setMemoryMap((Program) params[0], (String) params[1], (String) params[2]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -1164,6 +1248,7 @@ public class CommandProcessor {
 		case "setMemorySpace":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				TargetMapping.setMemorySpace((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -1172,6 +1257,7 @@ public class CommandProcessor {
 		case "setStatementOrdering":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				TargetMapping.setStatementOrdering((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -1199,6 +1285,7 @@ public class CommandProcessor {
 		case "setSchedule":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof List<?>)){
 				TargetMapping.setSchedule((Program) params[0], (String) params[1], (List<ScheduledStatement>) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -1207,6 +1294,7 @@ public class CommandProcessor {
 		case "setParallel":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer) && (params[3] instanceof String) && (params[4] instanceof String)){
 				TargetMapping.setParallel((Program) params[0], (String) params[1], (Integer) params[2], (String) params[3], (String) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
 				TargetMapping.setParallel((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
@@ -1218,6 +1306,7 @@ public class CommandProcessor {
 		case "CreateSpaceTimeLevel":
 			if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer)){
 				TargetMapping.CreateSpaceTimeLevel((Program) params[0], (String) params[1], (Integer) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -1226,15 +1315,19 @@ public class CommandProcessor {
 		case "setOrderingDimensions":
 			if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer) && (params[3] instanceof String)){
 				TargetMapping.setOrderingDimensions((Program) params[0], (String) params[1], (Integer) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer)){
 				TargetMapping.setOrderingDimensions((Program) params[0], (String) params[1], (Integer) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				TargetMapping.setOrderingDimensions((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 2) && (params[0] instanceof Program) && (params[1] instanceof String)){
 //				TargetMapping.setOrderingDimensions((Program) params[0], (String) params[1]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -1243,9 +1336,11 @@ public class CommandProcessor {
 		case "setSpaceTimeMapForMemoryAllocation":
 			if((params.length == 6) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer) && (params[5] instanceof AffineFunction)){
 				TargetMapping.setSpaceTimeMapForMemoryAllocation((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4], (AffineFunction) params[5]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer)){
 //				TargetMapping.setSpaceTimeMapForMemoryAllocation((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -1254,9 +1349,11 @@ public class CommandProcessor {
 		case "setSpaceTimeMapForValueCopy":
 			if((params.length == 6) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer) && (params[5] instanceof AffineFunction)){
 				TargetMapping.setSpaceTimeMapForValueCopy((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4], (AffineFunction) params[5]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer)){
 //				TargetMapping.setSpaceTimeMapForValueCopy((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -1265,9 +1362,11 @@ public class CommandProcessor {
 		case "setSpaceTimeMapForMemoryFree":
 			if((params.length == 6) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer) && (params[5] instanceof AffineFunction)){
 				TargetMapping.setSpaceTimeMapForMemoryFree((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4], (AffineFunction) params[5]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer)){
 //				TargetMapping.setSpaceTimeMapForMemoryFree((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -1276,9 +1375,11 @@ public class CommandProcessor {
 		case "setSpaceTimeMapForUseEquationOptimization":
 			if((params.length == 8) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer) && (params[5] instanceof AffineFunction) && (params[6] instanceof AffineFunction) && (params[7] instanceof AffineFunction)){
 				TargetMapping.setSpaceTimeMapForUseEquationOptimization((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4], (AffineFunction) params[5], (AffineFunction) params[6], (AffineFunction) params[7]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 //			else if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer)){
 //				TargetMapping.setSpaceTimeMapForUseEquationOptimization((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4]);
+//				memento.recordAction(input, (Program) st.get(progName));
 //			}
 			else{
 				hp.printHelp(func);
@@ -1287,6 +1388,7 @@ public class CommandProcessor {
 		case "setMemorySpaceForUseEquationOptimization":
 			if((params.length == 6) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer) && (params[5] instanceof String)){
 				TargetMapping.setMemorySpaceForUseEquationOptimization((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4], (String) params[5]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -1295,9 +1397,11 @@ public class CommandProcessor {
 		case "setBandForTiling":
 			if((params.length == 7) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof String) && (params[5] instanceof Integer) && (params[6] instanceof Integer)){
 				TargetMapping.setBandForTiling((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (String) params[4], (Integer) params[5], (Integer) params[6]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 6) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer) && (params[5] instanceof Integer)){
 				TargetMapping.setBandForTiling((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4], (Integer) params[5]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -1306,9 +1410,11 @@ public class CommandProcessor {
 		case "setSubTilingWithinBand":
 			if((params.length == 7) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof Integer) && (params[5] instanceof Integer) && (params[6] instanceof String)){
 				TargetMapping.setSubTilingWithinBand((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (Integer) params[4], (Integer) params[5], (String) params[6]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof Integer) && (params[4] instanceof String)){
 				TargetMapping.setSubTilingWithinBand((Program) params[0], (String) params[1], (String) params[2], (Integer) params[3], (String) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
@@ -1317,14 +1423,17 @@ public class CommandProcessor {
 		case "setDefaultDTilerConfiguration":
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer) && (params[3] instanceof Integer) && (params[4] instanceof String)){
 				TargetMapping.setDefaultDTilerConfiguration((Program) params[0], (String) params[1], (Integer) params[2], (Integer) params[3], (String) params[4]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 				TargetMapping.setDefaultDTilerConfiguration((Program) params[0], (String) params[1], (String) params[2]);
+				memento.recordAction(input, (Program) st.get(progName));
 			}
 			else{
 				hp.printHelp(func);
 			}
 			break;
+		
 		case "history":
 			if(params.length == 0)
 			{
@@ -1423,6 +1532,15 @@ public class CommandProcessor {
 				System.err.println("Attempted to remove a variable that is not declared.");
 				return;
 			}
+			break;
+		case "print":
+			if(params.length==1 &&((params[0] instanceof String) || params[0] instanceof Domain || params[0] instanceof AffineFunction)){
+				System.out.println(params[0]);
+			}
+			else{
+				System.err.println("Unsupported parameter type");
+				return;
+			}
 		case "clear":
 			clear();
 			break;
@@ -1430,16 +1548,18 @@ public class CommandProcessor {
 			String f = (String) params[0];
 			hp.printHelp(f);
 			break;
+		default:
+			System.err.println("No matching function defined.");
+			return;
 		}
-		
-		if(assignVar != null){
+		if(methodMap.containsKey(func) && assignVar != null){
 			st.put(assignVar, result);
 		}
 	}
 	
 	/**
 	 * <h2> clear </h2>
-	 * Clears the current context - Symbol Table, program, and mimento.
+	 * Clears the current context - Symbol Table, program, and memento.
 	 */
 	private void clear()
 	{
