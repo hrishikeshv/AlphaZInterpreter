@@ -157,13 +157,11 @@ public class CommandProcessor {
 				String nonstrparams = "";
 				for(int i=0;i<quotesplit.length; i+=2)
 					nonstrparams = nonstrparams + quotesplit[i];
-				nonstrparams = nonstrparams.replaceAll(" ", "");
-				//System.out.println(nonstrparams);
+				//nonstrparams = nonstrparams.replaceAll(" ", "");
 				String[] commasplit = nonstrparams.split(",");
 				args = new String[commasplit.length];
-				//System.out.println(commasplit.length);
 				for(int i=0, j=1;i<commasplit.length; i++){
-					if(commasplit[i].isEmpty()){
+					if(commasplit[i].replaceAll(" ", "").isEmpty()){
 						args[i]="\"" + quotesplit[j] + "\"";
 						j+=2;
 					}
@@ -1199,14 +1197,15 @@ public class CommandProcessor {
 			}
 			break;
 		case "setSpaceTimeMap":
+			
 			if((params.length == 5) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof Integer) && (params[3] instanceof String) && (params[4] instanceof AffineFunction)){
 				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (Integer) params[2], (String) params[3], (AffineFunction) params[4]);
 				memento.recordAction(input, (Program) st.get(progName));
 			}
-//			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
-//				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (S) params[2], (String) params[3]);
-//				memento.recordAction(input, (Program) st.get(progName));
-//			}
+			else if((params.length == 4) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String) && (params[3] instanceof String)){
+				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (String) params[2], (String) params[3]);
+				memento.recordAction(input, (Program) st.get(progName));
+			}
 //			else if((params.length == 3) && (params[0] instanceof Program) && (params[1] instanceof String) && (params[2] instanceof String)){
 //				TargetMapping.setSpaceTimeMap((Program) params[0], (String) params[1], (String) params[2]);
 //				memento.recordAction(input, (Program) st.get(progName));
@@ -1462,28 +1461,28 @@ public class CommandProcessor {
 			}
 			break;
 	
-		case "searchHistory":
-			if(params.length != 1)
-			{
-				try {
-					String pat = (String) params[0];
-					for(int i = 0; i < history.size(); i++)
-					{
-						if(history.get(i).contains(pat)) {
-							String op = String.format("%4d\t%s", i+1, history.get(i));
-							System.out.println(op);
-						}
-					}
-				}
-				catch(PatternSyntaxException e)
-				{
-					System.out.println("Invalid regex or string: " + params[0]);
-				}
-			}
-			else {
-				System.out.println("Invalid syntax: "+input);
-			}
-			break;
+//		case "searchHistory":
+//			if(params.length != 1)
+//			{
+//				try {
+//					String pat = (String) params[0];
+//					for(int i = 0; i < history.size(); i++)
+//					{
+//						if(history.get(i).contains(pat)) {
+//							String op = String.format("%4d\t%s", i+1, history.get(i));
+//							System.out.println(op);
+//						}
+//					}
+//				}
+//				catch(PatternSyntaxException e)
+//				{
+//					System.out.println("Invalid regex or string: " + params[0]);
+//				}
+//			}
+//			else {
+//				System.out.println("Invalid syntax: "+input);
+//			}
+//			break;
 	
 		case "undo":
 			if(params.length == 0)
